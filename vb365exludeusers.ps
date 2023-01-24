@@ -1,0 +1,42 @@
+# If not present, install the "Azure AD" PowerShell Module (run only once)
+Install-Module -Name AzureAD
+
+Import-Module  AzureAD
+Connect-AzureAD
+
+# Reference the backup job
+$job = Get-VBOJob -Name "MyBackupJob"
+
+# Reference the MS 365 Organization
+$org = Get-VBOOrganization -Name "mytenant.onmicrosoft.com"
+
+# Reference the SkuPartNumber
+$targetsku = "TEAMS_EXPLORATORY"
+
+$users = Get-AzureAdUser -All $True
+
+$licensePlanList = Get-AzureADSubscribedSku
+
+ForEach ($user in $users)
+
+{
+    $userUPN=$user.UserPrincipalName
+    
+    $userList = $user | Select -ExpandProperty AssignedLicenses | Select SkuID
+    
+    $userList | ForEach {
+         $sku=$_.SkuId
+         $licensePlanList | ForEach {
+             If ( $sku -eq $_.ObjectId.substring($_.ObjectId.length - 36, 36) ) {
+                    If ($_.SkuPartNumber -eq $targetsku) {
+                        Write-Host $userUPN $_.SkuPartNumber
+                        $excludeduser = Get-VBOOrganizationUser -Organization $org -UserName $userUPN
+                        $excludeditems = New-VBOBackupItem -User $excludeduser
+                        Add-VBOExcludedBackupItem -Job $job -BackupItem $excludeditems
+                        }
+                   }
+               }
+            }
+}
+
+
